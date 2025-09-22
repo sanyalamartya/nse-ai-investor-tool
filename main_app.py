@@ -1,11 +1,12 @@
 import streamlit as st
 import openai
+from openai import OpenAI
 
 from data_fetcher import get_stock_data, get_fundamentals
 from technical_analysis import analyze_technical_signals
 from recommendation_engine import recommend_term
 
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 def generate_ai_explanation(ticker, fundamentals, technicals, recommendation):
     prompt = f"""
@@ -16,16 +17,14 @@ Technical Indicators: {technicals}
 
 Give the explanation in 2-3 bullet points, easy to understand.
 """
-
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
             max_tokens=150,
         )
         explanation = response.choices[0].message.content.strip()
-
     except Exception as e:
         explanation = "Failed to generate explanation."
         st.error(f"OpenAI API error: {e}")
