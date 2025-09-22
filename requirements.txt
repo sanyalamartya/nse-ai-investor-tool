@@ -1,0 +1,7 @@
+streamlit
+yfinance
+nsetools
+pandas
+ta
+scikit-learn
+openai
