@@ -2,7 +2,7 @@ import streamlit as st
 import openai
 from data_fetcher import get_stock_data, get_fundamentals
 from technical_analysis import analyze_technical_signals
-from recommendation_engine import recommend_term
+from recommendation_engine import recommend_term, generate_ai_explanation
 def generate_ai_explanation(ticker, fundamentals, technicals, recommendation):
     openai.api_key = st.secrets["OPENAI_API_KEY"]
 
@@ -44,6 +44,12 @@ if st.button("Analyze"):
             recommendation = recommend_term(fundamentals, technicals)
 
         st.success(f"📌 Recommended Term: **{recommendation}**")
+        # AI Explanation using LLM
+explanation = generate_ai_explanation(ticker, fundamentals, technicals, recommendation)
+
+st.markdown("### 🤖 AI Explanation")
+st.info(explanation)
+
         st.markdown("### 📊 Fundamentals")
         st.json(fundamentals)
         st.markdown("### 📈 Technicals")
