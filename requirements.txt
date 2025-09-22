@@ -4,4 +4,4 @@ nsetools
 pandas
 ta
 scikit-learn
-openai
+openai>=1.1.0
