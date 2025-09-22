@@ -1,7 +1,32 @@
 import streamlit as st
+import openai
 from data_fetcher import get_stock_data, get_fundamentals
 from technical_analysis import analyze_technical_signals
 from recommendation_engine import recommend_term
+def generate_ai_explanation(ticker, fundamentals, technicals, recommendation):
+    openai.api_key = st.secrets["OPENAI_API_KEY"]
+
+    prompt = f"""
+    You are a stock analyst assistant. Explain to a beginner investor in simple language why the stock {ticker} has been recommended for a {recommendation} investment.
+
+    Fundamentals: {fundamentals}
+    Technical Indicators: {technicals}
+
+    Give the explanation in 2-3 bullet points, easy to understand.
+    """
+
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,
+            max_tokens=150,
+        )
+        explanation = response.choices[0].message.content.strip()
+        return explanation
+
+    except Exception as e:
+        return f"AI explanation could not be generated: {e}"
 
 st.set_page_config(page_title="NSE AI Stock Analyzer", layout="centered")
 
