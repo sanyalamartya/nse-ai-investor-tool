@@ -1,4 +1,3 @@
-import pandas as pd
 from data_fetcher import get_stock_data, get_fundamentals
 from technical_analysis import analyze_technical_signals
 from recommendation_engine import recommend_term
@@ -50,19 +49,8 @@ def get_top_5_by_term(results):
             elif "long" in rec:
                 long.append(res)
 
-    # Return top 5 from each (currently in order of appearance)
     return {
         "Short Term": short[:5],
         "Mid Term": mid[:5],
         "Long Term": long[:5]
     }
-
-if __name__ == "__main__":
-    results = analyze_all_stocks()
-    top_5 = get_top_5_by_term(results)
-
-    # Save to file or just print
-    for term, stocks in top_5.items():
-        print(f"\n🟢 Top 5 for {term}:")
-        for stock in stocks:
-            print(f" - {stock['Ticker']} | {stock['Recommendation']}")
