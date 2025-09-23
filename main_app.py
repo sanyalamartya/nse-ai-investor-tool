@@ -1,128 +1,93 @@
+# main_app.py
+
 import streamlit as st
-import openai
-from openai import OpenAI
-
 from data_fetcher import get_stock_data, get_fundamentals
-from technical_analysis import analyze_technical_signals
-from recommendation_engine import recommend_term
+from batch_runner import analyze_all_stocks
 
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+# Set page layout
+st.set_page_config(page_title="NSE AI Stock Recommender", layout="wide")
+st.title("📊 AI-Based Investment Horizon Recommender")
 
-# 🔹 Generate AI explanation for a single stock
-def generate_ai_explanation(ticker, fundamentals, technicals, recommendation):
-    prompt = f"""
-    You are a stock analyst assistant. Explain to a beginner investor in simple language why the stock {ticker} has been recommended as {recommendation}.
+# -------------------- Single Stock Analysis --------------------
+st.header("🔍 Analyze a Single NSE Stock")
 
-    Fundamentals: {fundamentals}
-    Technical Indicators: {technicals}
+symbol = st.text_input("Enter NSE Symbol (e.g., INFY, TCS)")
 
-    Give the explanation in 2-3 bullet points, easy to understand.
-    """
+if st.button("Analyze") and symbol:
+    with st.spinner(f"Analyzing {symbol}..."):
+        if not symbol.endswith(".NS"):
+            symbol += ".NS"
 
-    try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.7,
-            max_tokens=150,
-        )
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        return "Failed to generate explanation."
+        data = get_stock_data(symbol)
+        fundamentals = get_fundamentals(symbol)
 
+        if data is None or fundamentals is None:
+            st.error("⚠️ Could not fetch data for this symbol.")
+        else:
+            st.success(f"✅ Data fetched for {symbol}")
+            
+            # Simple rule-based recommendation
+            pe = fundamentals.get("pe_ratio")
+            eps = fundamentals.get("eps")
+            roe = fundamentals.get("roe")
+            book_value = fundamentals.get("book_value")
 
-# 🔹 AI Ranking for Top 5 in each term
-def ai_rank_stocks(term, stocks):
-    prompt = f"""
-You are an investment advisor helping prioritize stocks for a {term} investor.
-Based on the fundamentals and technical indicators, rank the following stocks from best to worst, and explain briefly why each is ranked that way.
+            score = {"short": 0, "mid": 0, "long": 0}
+            explanation = []
 
-Respond with the list in this format:
+            if pe and pe < 25:
+                score["short"] += 1
+                explanation.append("Low PE Ratio (<25)")
 
-1. TICKER - Explanation
-2. TICKER - Explanation
-...
+            if eps and eps > 20:
+                score["short"] += 1
+                score["mid"] += 1
+                explanation.append("High EPS (>20)")
 
-Stocks:
+            if roe and roe > 0.15:
+                score["mid"] += 1
+                score["long"] += 1
+                explanation.append("High ROE (>15%)")
 
-"""
+            if pe and pe < 20:
+                score["long"] += 1
 
-    for stock in stocks:
-        prompt += f"\nTicker: {stock['Ticker']}\n"
-        prompt += f"Fundamentals: {stock.get('Fundamentals', {})}\n"
-        prompt += f"Technicals: {stock.get('Technicals', {})}\n"
+            if book_value and book_value > 0:
+                score["long"] += 1
+                explanation.append("Positive Book Value")
 
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.5,
-            max_tokens=500
-        )
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        return "❌ Failed to rank stocks with AI."
+            # Determine recommended term
+            recommended_term = max(score, key=score.get)
+            label = {
+                "short": "📍 Short-Term",
+                "mid": "⏳ Mid-Term",
+                "long": "🏦 Long-Term"
+            }.get(recommended_term, "N/A")
 
+            st.subheader(f"🧭 Investment Horizon Recommendation: **{label}**")
+            st.markdown("**Why?** " + ", ".join(explanation))
 
-# 🔹 Main app function
-def main():
-    st.set_page_config(page_title="NSE AI Stock Recommender", layout="wide")
-    st.title("📈 AI-based NSE Stock Recommender")
+            with st.expander("📊 Fundamentals"):
+                st.json(fundamentals)
 
-    # 🔸 Individual stock analysis
-    st.markdown("### 🔹 Analyze Individual NSE Stock")
-    ticker = st.text_input("Enter NSE Symbol (e.g., INFY, TCS)")
+# -------------------- Batch Scan Section --------------------
+st.markdown("---")
+st.header("📡 Batch Scan Across All NSE Stocks")
 
-    if st.button("Analyze") and ticker:
-        try:
-            stock_data = get_stock_data(ticker)
-            fundamentals = get_fundamentals(ticker)
-            technicals = analyze_technical_signals(stock_data)
-            recommendation = recommend_term(technicals, fundamentals)
+if st.button("Run Batch Scan"):
+    with st.spinner("Scanning all stocks..."):
+        results = analyze_all_stocks()
 
-            st.success(f"📌 Recommended Term: **{recommendation}**")
-            st.markdown("---")
+        st.success("✅ Batch scan completed")
+        st.markdown(f"**Total Stocks Analyzed:** `{results['total_analyzed']}`")
 
-            st.write("🧠 **AI Explanation**")
-            explanation = generate_ai_explanation(ticker, fundamentals, technicals, recommendation)
-            st.write(explanation)
+        def display(title, stocks):
+            st.subheader(title)
+            if not stocks:
+                st.info("No recommendations found.")
+            else:
+                st.table(stocks)
 
-            st.markdown("📊 **Fundamentals**")
-            st.json(fundamentals)
-
-            st.markdown("🔧 **Technical Indicators**")
-            st.json(technicals)
-
-        except Exception as e:
-            st.error(f"Something went wrong: {e}")
-
-    # 🔸 Batch analysis section
-    st.markdown("---")
-    st.markdown("## 🔍 Run Batch Analysis on All NSE Stocks")
-
-    if st.button("Run Batch Analysis"):
-        from batch_runner import analyze_all_stocks, get_top_5_by_term
-
-        with st.spinner("Analyzing all NSE stocks... this may take a few minutes ⏳"):
-            results = analyze_all_stocks()
-            top_5 = get_top_5_by_term(results)
-
-        st.success("✅ Batch analysis completed!")
-
-        for term, stocks in top_5.items():
-            with st.expander(f"Top 5 Stocks for {term}"):
-                for stock in stocks:
-                    st.markdown(f"**{stock['Ticker']}**  \n📌 *{stock['Recommendation']}*")
-                    st.write("🔧 Technicals:")
-                    st.json(stock.get("Technicals", {}))
-                    st.write("📊 Fundamentals:")
-                    st.json(stock.get("Fundamentals", {}))
-
-                st.markdown("### 🤖 AI Ranking of These Stocks")
-                with st.spinner("Getting AI-ranked list from GPT-4..."):
-                    ai_ranking = ai_rank_stocks(term, stocks)
-                st.markdown(ai_ranking)
-
-
-if __name__ == "__main__":
-    main()
+        display("📍 Top 5 Stocks for Short-Term", results["short_term"])
+        display("⏳ Top 5 Stocks for Mid-Term", results["mid_term"])
+        display("🏦 Top 5 Stocks for Long-Term", results["long_term"])
