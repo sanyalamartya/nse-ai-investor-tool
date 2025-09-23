@@ -6,7 +6,7 @@ from recommendation_engine import recommend_term
 def load_nse_tickers(filename="nse_symbols_full"):
     with open(filename, "r") as f:
         lines = f.readlines()
-    tickers = [line.strip() for line in lines if line.strip() != "SYMBOL"]
+        tickers = [line.strip() for line in lines if line.strip() != "SYMBOL"]
     return tickers
 
 def analyze_all_stocks():
@@ -23,16 +23,26 @@ def analyze_all_stocks():
             results.append({
                 "Ticker": ticker,
                 "Recommendation": recommendation,
-                "Fundamentals": fundamentals,
-                "Technicals": technicals
+                "RSI": technicals.get("rsi"),
+                "MACD": technicals.get("macd"),
+                "Trend": technicals.get("trend"),
+                "Error": ""
             })
 
         except Exception as e:
             results.append({
                 "Ticker": ticker,
+                "Recommendation": "",
+                "RSI": "",
+                "MACD": "",
+                "Trend": "",
                 "Error": str(e)
             })
 
+    # Save to CSV
     df = pd.DataFrame(results)
     df.to_csv("batch_results.csv", index=False)
-    print("✅ Batch analysis complete. Results saved to batch_results.csv")
+    print("✅ Batch analysis completed and saved to batch_results.csv")
+
+if __name__ == "__main__":
+    analyze_all_stocks()
