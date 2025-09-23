@@ -13,11 +13,16 @@ symbol = st.text_input("Enter NSE Symbol (e.g., INFY, TCS)", "")
 
 # Button
 if st.button("Analyze") and symbol:
-    st.info(f"Analyzing {symbol.upper()}...")
-
-    # Run analysis
     try:
-        results = analyze_single_stock(symbol.upper())
+        # Normalize symbol to uppercase and add .NS if not present
+        symbol_clean = symbol.strip().upper()
+        if not symbol_clean.endswith(".NS"):
+            symbol_clean += ".NS"
+
+        st.info(f"Analyzing `{symbol_clean}`...")
+
+        # Run analysis
+        results = analyze_single_stock(symbol_clean)
 
         if results is None:
             st.error("❌ Could not fetch data for this symbol.")
@@ -37,13 +42,19 @@ if st.button("Analyze") and symbol:
 
             # 📊 Fundamental Insights
             st.markdown("### 💼 Fundamental Strength")
-            for key, value in fundamentals.items():
-                st.write(f"- **{key}**: {value}")
+            if fundamentals:
+                for key, value in fundamentals.items():
+                    st.write(f"- **{key}**: {value}")
+            else:
+                st.warning("No fundamental data available.")
 
             # 📉 Technical Insights
             st.markdown("### 📉 Technical Analysis")
-            for key, value in technicals.items():
-                st.write(f"- **{key}**: {value}")
+            if technicals:
+                for key, value in technicals.items():
+                    st.write(f"- **{key}**: {value}")
+            else:
+                st.warning("No technical analysis found.")
 
             # 📰 Sentiment
             if sentiment:
@@ -52,8 +63,9 @@ if st.button("Analyze") and symbol:
                     st.write(f"- **{key}**: {value}")
 
             # 🧠 NLP Explanation
-            st.markdown("### 🤖 AI-Generated Explanation")
-            st.success(explanation)
+            if explanation:
+                st.markdown("### 🤖 AI-Generated Explanation")
+                st.success(explanation)
 
             # 🔥 Confidence Levels
             if confidence:
