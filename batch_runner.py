@@ -1,84 +1,69 @@
-import pandas as pd
+# batch_runner.py
+
 from data_fetcher import get_stock_data, get_fundamentals, load_nse_tickers
 
-# Score function for investment horizon
-def score_stock(data, fundamentals, term):
-    score = 0
+def score_stock(fundamentals, hist):
+    score = {"short": 0, "mid": 0, "long": 0}
 
-    # Validate input
-    if data is None or fundamentals is None:
-        return 0
+    if not fundamentals or hist is None or hist.empty:
+        return score
 
-    # Common financial metrics
-    pe = fundamentals.get('PE')
-    eps = fundamentals.get('EPS')
-    roe = fundamentals.get('ROE')
-    book_value = fundamentals.get('Book Value')
+    pe = fundamentals.get("pe_ratio")
+    eps = fundamentals.get("eps")
+    roe = fundamentals.get("roe")
+    book_value = fundamentals.get("book_value")
 
-    # Price momentum - short-term
-    if term == "short":
-        if data['Close'].iloc[-1] > data['Close'].iloc[-5]:
-            score += 1
-        if data['Close'].iloc[-1] > data['Close'].mean():
-            score += 1
+    # Short-term logic
+    if pe and pe < 25:
+        score["short"] += 1
+    if eps and eps > 20:
+        score["short"] += 1
 
-    # Mid-term
-    if term == "mid":
-        if data['Close'].iloc[-1] > data['Close'].iloc[-20]:
-            score += 1
-        if pe and pe < 20:
-            score += 1
-        if roe and roe > 15:
-            score += 1
+    # Mid-term logic
+    if eps and eps > 20:
+        score["mid"] += 1
+    if roe and roe > 0.15:
+        score["mid"] += 1
 
-    # Long-term
-    if term == "long":
-        if pe and pe < 15:
-            score += 1
-        if eps and eps > 0:
-            score += 1
-        if roe and roe > 15:
-            score += 1
-        if book_value and book_value > 0:
-            score += 1
+    # Long-term logic
+    if pe and pe < 20:
+        score["long"] += 1
+    if roe and roe > 0.15:
+        score["long"] += 1
+    if book_value and book_value > 0:
+        score["long"] += 1
 
     return score
 
-
 def analyze_all_stocks():
     tickers = load_nse_tickers()
-    results = []
+    short_term, mid_term, long_term = [], [], []
+    total_analyzed = 0
 
     for symbol in tickers:
         try:
             data = get_stock_data(symbol)
             fundamentals = get_fundamentals(symbol)
 
-            if data is not None and fundamentals is not None:
-                result = {
-                    "symbol": symbol,
-                    "data": data,
-                    "fundamentals": fundamentals
-                }
-                results.append(result)
+            if data is None or fundamentals is None:
+                continue
+
+            total_analyzed += 1
+            scores = score_stock(fundamentals, data)
+
+            short_term.append({"symbol": symbol, "score": scores["short"]})
+            mid_term.append({"symbol": symbol, "score": scores["mid"]})
+            long_term.append({"symbol": symbol, "score": scores["long"]})
+
         except Exception as e:
-            print(f"Error fetching data for {symbol}: {e}")
+            print(f"[ERROR] Failed to analyze {symbol}: {e}")
 
-    return results
+    def top5(lst):
+        return sorted(lst, key=lambda x: x["score"], reverse=True)[:5]
 
-
-def get_ranked_stocks(results, term):
-    scored = []
-
-    for stock in results:
-        symbol = stock['symbol']
-        data = stock['data']
-        fundamentals = stock['fundamentals']
-
-        score = score_stock(data, fundamentals, term)
-        scored.append({"symbol": symbol, "score": score})
-
-    df = pd.DataFrame(scored)
-    df = df.sort_values(by="score", ascending=False)
-
-    return df.head(5)
+    return {
+        "short_term": top5(short_term),
+        "mid_term": top5(mid_term),
+        "long_term": top5(long_term),
+        "total_analyzed": total_analyzed
+    }
