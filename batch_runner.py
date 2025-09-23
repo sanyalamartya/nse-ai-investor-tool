@@ -40,5 +40,5 @@ def analyze_all_stocks():
     
     return results
 
-def get_ranked_stocks(results):
-    return rank_stocks(results)
+def get_ranked_stocks(results, term="short"):
+    return rank_stocks(results, term)
