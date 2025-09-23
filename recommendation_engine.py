@@ -1,67 +1,33 @@
-def recommend_term(technicals, fundamentals):
-    # Simple logic based on indicators
-    if technicals.get("EMA_Crossover") == "Bullish" and technicals.get("RSI") < 70:
-        return "short"
-    elif technicals.get("MACD") == "Bullish" or technicals.get("Bollinger") == "Breakout":
-        return "mid"
-    else:
-        return "long"
+def rank_stocks(results, term="short"):
+    from openai import OpenAI
+    import streamlit as st
 
+    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+    
+    prompt = f"""
+    You are an AI financial analyst. Given the following stock analysis data, rank the stocks based on how attractive they are for a **{term}-term** investment.
 
-def rank_stocks(stocks):
-    ranked = []
-    for stock in stocks:
-        try:
-            fundamentals = stock.get("Fundamentals", {})
-            technicals = stock.get("Technicals", {})
+    Use both fundamentals and technicals to decide. 
+    Prioritize stocks that are fundamentally strong, undervalued, and showing strong buy signals in technicals. 
+    Give a brief 1-line reason for each. Return top 5 only.
 
-            score = 0
-            reasons = []
+    Data: {results}
 
-            # PE ratio check
-            pe = fundamentals.get("PE Ratio")
-            if pe and 5 < pe < 20:
-                score += 2
-                reasons.append("attractive PE")
+    Return format:
+    1. SYMBOL - Reason
+    2. SYMBOL - Reason
+    3. SYMBOL - Reason
+    4. SYMBOL - Reason
+    5. SYMBOL - Reason
+    """
 
-            # EPS check
-            eps = fundamentals.get("EPS")
-            if eps and eps > 10:
-                score += 2
-                reasons.append("strong EPS")
-
-            # Book value check
-            book = fundamentals.get("Book Value")
-            if book and book > 100:
-                score += 1
-                reasons.append("high book value")
-
-            # EMA crossover
-            if technicals.get("EMA_Crossover") == "Bullish":
-                score += 2
-                reasons.append("bullish EMA")
-
-            # Bollinger breakout
-            if technicals.get("Bollinger") == "Breakout":
-                score += 1
-                reasons.append("bollinger breakout")
-
-            # MACD
-            if technicals.get("MACD") == "Bullish":
-                score += 1
-                reasons.append("bullish MACD")
-
-            stock["Score"] = score
-            stock["Reasons"] = reasons
-            ranked.append(stock)
-
-        except Exception:
-            continue
-
-    return sorted(ranked, key=lambda x: x["Score"], reverse=True)
-
-
-def get_ranked_stocks(results, term):
-    filtered = [s for s in results if s.get("Recommendation") == term]
-    ranked = rank_stocks(filtered)
-    return ranked
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.5,
+            max_tokens=500,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        return f"AI ranking failed: {e}"
