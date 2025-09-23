@@ -1,3 +1,4 @@
+import pandas as pd
 import streamlit as st
 import openai
 from openai import OpenAI
@@ -59,6 +60,23 @@ if st.button("Analyze"):
 
         st.markdown("### 📈 Technical Indicators")
         st.json(technicals)
+        import batch_runner
+
+st.markdown("---")
+st.header("📊 Run Full Market Scan (Batch Mode)")
+
+if st.button("Run Batch Analysis"):
+    with st.spinner("Analyzing all stocks... this may take a few minutes ⏳"):
+        results = batch_runner.analyze_all_stocks()
+        df = pd.DataFrame(results)
+        df.to_csv("batch_results.csv", index=False)
+        st.success("Batch analysis completed and saved to batch_results.csv ✅")
+
+        # Display top 5 per term
+        for term in ["Short Term", "Medium Term", "Long Term"]:
+            st.subheader(f"Top 5 Recommendations: {term}")
+            top_df = df[df["Recommendation"] == term].head(5)
+            st.table(top_df[["Ticker", "Recommendation"]])
 
     except Exception as e:
         st.error(f"An error occurred during analysis: {e}")
