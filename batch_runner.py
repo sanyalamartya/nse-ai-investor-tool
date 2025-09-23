@@ -1,19 +1,19 @@
-import os
+import pandas as pd
 from data_fetcher import get_stock_data, get_fundamentals
 from technical_analysis import analyze_technical_signals
 from recommendation_engine import recommend_term, rank_stocks
 
-def load_nse_tickers(filename="nse_symbols_full.csv"):
-    # Fallback tickers if file not found
-    if not os.path.exists(filename):
-        return ["TCS", "INFY", "RELIANCE", "HDFCBANK", "ICICIBANK"]
-    
-    with open(filename, "r") as f:
-        lines = f.readlines()
-        tickers = [line.strip() for line in lines if line.strip() != "SYMBOL"]
-    
-    return tickers
+# ✅ Load all NSE equity tickers from CSV
+def load_nse_tickers():
+    try:
+        df = pd.read_csv("data/nse_eq_symbols.csv")  # Ensure this file exists
+        symbols = df["Symbol"].dropna().unique().tolist()
+        return symbols
+    except Exception as e:
+        print(f"Error loading tickers: {e}")
+        return []
 
+# ✅ Analyze all stocks and gather data
 def analyze_all_stocks():
     tickers = load_nse_tickers()
     results = []
@@ -23,22 +23,20 @@ def analyze_all_stocks():
             stock_data = get_stock_data(ticker)
             fundamentals = get_fundamentals(ticker)
             technicals = analyze_technical_signals(stock_data)
-            recommendation = recommend_term(technicals, fundamentals)
-
+            term = recommend_term(technicals, fundamentals)  # 🔁 Updated to use both technical + fundamental
             results.append({
-                "Ticker": ticker,
-                "Recommendation": recommendation,
-                "Fundamentals": fundamentals,
-                "Technicals": technicals
+                "ticker": ticker,
+                "fundamentals": fundamentals,
+                "technicals": technicals,
+                "term": term
             })
-        
         except Exception as e:
-            results.append({
-                "Ticker": ticker,
-                "Error": str(e)
-            })
-    
+            print(f"Error processing {ticker}: {e}")
+            continue
+
     return results
 
-def get_ranked_stocks(results, term="short"):
-    return rank_stocks(results, term)
+# ✅ Get top N ranked stocks for the given investment term
+def get_ranked_stocks(results, term="short", top_n=5):
+    filtered = [r for r in results if r["term"] == term]
+    return rank_stocks(filtered, term)[:top_n]
