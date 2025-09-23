@@ -1,5 +1,6 @@
 from data_fetcher import get_stock_data, get_fundamentals, load_nse_tickers
-from recommendation_engine import rank_stocks
+from recommendation_engine import recommend_term
+import pandas as pd
 
 def analyze_all_stocks():
     tickers = load_nse_tickers()
@@ -7,16 +8,18 @@ def analyze_all_stocks():
 
     for symbol in tickers:
         try:
-            technicals = get_stock_data(symbol)
+            data = get_stock_data(symbol)
             fundamentals = get_fundamentals(symbol)
-
-            if technicals and fundamentals:
-                combined = {"symbol": symbol, **technicals, **fundamentals}
-                results.append(combined)
+            if data and fundamentals:
+                term = recommend_term(fundamentals, data)
+                results.append({"symbol": symbol, "term": term})
         except Exception:
-            pass  # Ignore failed fetches silently for now
+            continue  # skip failures
 
-    return results
+    df = pd.DataFrame(results)
 
-def get_ranked_stocks(results, term="short"):
-    return rank_stocks(results, term)
+    short_df = df[df["term"] == "short"].head(5).reset_index(drop=True)
+    mid_df = df[df["term"] == "mid"].head(5).reset_index(drop=True)
+    long_df = df[df["term"] == "long"].head(5).reset_index(drop=True)
+
+    return short_df, mid_df, long_df, len(df)
