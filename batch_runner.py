@@ -23,26 +23,46 @@ def analyze_all_stocks():
             results.append({
                 "Ticker": ticker,
                 "Recommendation": recommendation,
-                "RSI": technicals.get("rsi"),
-                "MACD": technicals.get("macd"),
-                "Trend": technicals.get("trend"),
-                "Error": ""
+                "Fundamentals": fundamentals,
+                "Technicals": technicals
             })
 
         except Exception as e:
             results.append({
                 "Ticker": ticker,
-                "Recommendation": "",
-                "RSI": "",
-                "MACD": "",
-                "Trend": "",
                 "Error": str(e)
             })
 
-    # Save to CSV
-    df = pd.DataFrame(results)
-    df.to_csv("batch_results.csv", index=False)
-    print("✅ Batch analysis completed and saved to batch_results.csv")
+    return results
+
+def get_top_5_by_term(results):
+    short = []
+    mid = []
+    long = []
+
+    for res in results:
+        if "Recommendation" in res:
+            rec = res["Recommendation"].lower()
+            if "short" in rec:
+                short.append(res)
+            elif "mid" in rec:
+                mid.append(res)
+            elif "long" in rec:
+                long.append(res)
+
+    # Return top 5 from each (currently in order of appearance)
+    return {
+        "Short Term": short[:5],
+        "Mid Term": mid[:5],
+        "Long Term": long[:5]
+    }
 
 if __name__ == "__main__":
-    analyze_all_stocks()
+    results = analyze_all_stocks()
+    top_5 = get_top_5_by_term(results)
+
+    # Save to file or just print
+    for term, stocks in top_5.items():
+        print(f"\n🟢 Top 5 for {term}:")
+        for stock in stocks:
+            print(f" - {stock['Ticker']} | {stock['Recommendation']}")
