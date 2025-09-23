@@ -5,7 +5,6 @@ from data_fetcher import load_nse_tickers
 
 # ---------------------- Term Categorization Logic ---------------------- #
 def categorize_term(volatility, trend_strength, eps_growth):
-    """Categorize stock holding period."""
     if volatility < 0.02 and trend_strength > 0.5:
         return "Short-Term"
     elif 0.02 <= volatility <= 0.05 and trend_strength > 0.3:
@@ -17,7 +16,6 @@ def categorize_term(volatility, trend_strength, eps_growth):
 
 # ---------------------- Explanation Generator ---------------------- #
 def generate_explanation(term, fundamentals, technicals):
-    """Generate plain English explanation."""
     expl = []
     if term == "Short-Term":
         expl.append("Low volatility and strong price momentum suggest a short-term opportunity.")
@@ -36,14 +34,18 @@ def generate_explanation(term, fundamentals, technicals):
 # ---------------------- Core Analysis Function ---------------------- #
 def analyze_single_stock(symbol):
     try:
+        if not symbol.endswith(".NS"):
+            symbol += ".NS"
+
         ticker = yf.Ticker(symbol)
         hist = ticker.history(period="6mo")
         info = ticker.info
 
         if hist.empty or not info:
+            print(f"⚠️ No data found for {symbol}")
             return None
 
-        # -------- Fundamental Metrics -------- #
+        # Fundamental Metrics
         pe_ratio = info.get("trailingPE", None)
         roe = info.get("returnOnEquity", None)
         eps = info.get("trailingEps", None)
@@ -58,7 +60,7 @@ def analyze_single_stock(symbol):
             "EPS Growth": f"{round(eps_growth * 100, 1)}%" if eps_growth else "N/A"
         }
 
-        # -------- Technical Metrics -------- #
+        # Technicals
         hist['Return'] = hist['Close'].pct_change()
         volatility = hist['Return'].std()
 
@@ -70,17 +72,17 @@ def analyze_single_stock(symbol):
             "Trend": "Bullish" if trend_strength > 0.05 else "Sideways" if trend_strength > 0 else "Bearish"
         }
 
-        # -------- Term Categorization -------- #
+        # Categorization
         term = categorize_term(volatility, trend_strength, eps_growth)
 
-        # -------- Confidence Scores -------- #
+        # Confidence Scores
         confidence = {
             "Short-Term": round((1 - volatility) * 100),
             "Mid-Term": round((trend_strength + 0.5) * 100),
             "Long-Term": round((eps_growth + 0.1) * 100)
         }
 
-        # -------- Explanation -------- #
+        # Explanation
         explanation = generate_explanation(term, fundamentals, technicals)
 
         return {
@@ -88,14 +90,13 @@ def analyze_single_stock(symbol):
             "explanation": explanation,
             "fundamentals": fundamentals,
             "technicals": technicals,
-            "sentiment": {},  # Placeholder
+            "sentiment": {},  # Optional enhancement
             "confidence": confidence
         }
 
     except Exception as e:
-        print(f"Error analyzing {symbol}: {e}")
+        print(f"❌ Error analyzing {symbol}: {e}")
         return None
-
 
 # ---------------------- Batch Analysis ---------------------- #
 def analyze_all_stocks():
@@ -114,7 +115,7 @@ def analyze_all_stocks():
                 result["confidence"].get("Long-Term", 0)
             )
 
-            entry = {"symbol": symbol, "score": score}
+            entry = {"symbol": symbol.replace(".NS", ""), "score": score}
 
             if result["term"] == "Short-Term":
                 top_short.append(entry)
@@ -123,7 +124,7 @@ def analyze_all_stocks():
             elif result["term"] == "Long-Term":
                 top_long.append(entry)
 
-    # Sort and select top 5
+    # Sort and get top 5
     top_short = sorted(top_short, key=lambda x: x["score"], reverse=True)[:5]
     top_mid = sorted(top_mid, key=lambda x: x["score"], reverse=True)[:5]
     top_long = sorted(top_long, key=lambda x: x["score"], reverse=True)[:5]
