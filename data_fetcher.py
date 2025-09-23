@@ -1,39 +1,32 @@
+import pandas as pd
 import yfinance as yf
 
 def load_nse_tickers():
-    # Sample list for demo – replace with actual NSE symbols
-    return ["TCS.NS", "INFY.NS", "RELIANCE.NS", "HDFCBANK.NS", "ICICIBANK.NS"]
+    try:
+        url = "https://archives.nseindia.com/content/equities/EQUITY_L.csv"
+        df = pd.read_csv(url)
+        tickers = df['SYMBOL'].tolist()
+        return [symbol + ".NS" for symbol in tickers]
+    except Exception as e:
+        print("Error loading NSE tickers:", e)
+        return []
 
 def get_stock_data(symbol):
     try:
-        data = yf.Ticker(symbol)
-        hist = data.history(period="3mo")
-        
-        # Example of computing simple technical signals
-        recent_close = hist["Close"].iloc[-1]
-        prev_close = hist["Close"].iloc[-2]
-
-        return {
-            "recent_close": recent_close,
-            "prev_close": prev_close,
-            "ema_signal": "bullish" if recent_close > hist["Close"].ewm(span=20).mean().iloc[-1] else "bearish",
-            "macd_signal": "bullish",  # Placeholder
-            "rsi_signal": "bullish"    # Placeholder
-        }
-    except:
+        df = yf.download(symbol, period="6mo", progress=False)
+        return df if not df.empty else None
+    except Exception:
         return None
 
 def get_fundamentals(symbol):
     try:
         stock = yf.Ticker(symbol)
         info = stock.info
-
         return {
             "pe_ratio": info.get("trailingPE"),
             "eps": info.get("trailingEps"),
-            "roe": info.get("returnOnEquity", 0) * 100 if info.get("returnOnEquity") else None,
-            "eps_growth": info.get("earningsQuarterlyGrowth", 0) * 100 if info.get("earningsQuarterlyGrowth") else None,
-            "revenue_growth": info.get("revenueGrowth", 0) * 100 if info.get("revenueGrowth") else None,
+            "book_value": info.get("bookValue"),
+            "roe": info.get("returnOnEquity")
         }
-    except:
+    except Exception:
         return None
