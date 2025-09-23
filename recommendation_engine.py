@@ -1,56 +1,67 @@
-def recommend_term(technicals, fundamentals=None):
-    """
-    Determines investment horizon based on combined technical and fundamental analysis.
-    
-    Inputs:
-    - technicals: dict with RSI, MACD, EMA signals, Bollinger band signals
-    - fundamentals: dict with key ratios (optional, for AI or future scoring)
-
-    Output:
-    - str: One of "Short Term", "Mid Term", "Long Term"
-    """
-
-    rsi = technicals.get("rsi", 50)
-    macd = technicals.get("macd", 0)
-    ema_crossover = technicals.get("ema_crossover", "none")  # "bullish", "bearish", "none"
-    bollinger_signal = technicals.get("bollinger", "neutral")  # "breakout", "breakdown", "neutral"
-
-    score = 0
-
-    # RSI scoring
-    if rsi > 65:
-        score += 2  # strong upward momentum
-    elif rsi < 35:
-        score -= 1  # oversold, possible bounce
+def recommend_term(technicals, fundamentals):
+    # Simple logic based on indicators
+    if technicals.get("EMA_Crossover") == "Bullish" and technicals.get("RSI") < 70:
+        return "short"
+    elif technicals.get("MACD") == "Bullish" or technicals.get("Bollinger") == "Breakout":
+        return "mid"
     else:
-        score += 0
+        return "long"
 
-    # MACD scoring
-    if macd > 0.5:
-        score += 2
-    elif macd > 0:
-        score += 1
-    else:
-        score -= 1
 
-    # EMA crossover scoring
-    if ema_crossover == "bullish":
-        score += 2
-    elif ema_crossover == "bearish":
-        score -= 2
+def rank_stocks(stocks):
+    ranked = []
+    for stock in stocks:
+        try:
+            fundamentals = stock.get("Fundamentals", {})
+            technicals = stock.get("Technicals", {})
 
-    # Bollinger band scoring
-    if bollinger_signal == "breakout":
-        score += 1
-    elif bollinger_signal == "breakdown":
-        score -= 1
+            score = 0
+            reasons = []
 
-    # Optional: add fundamentals score boost in future
+            # PE ratio check
+            pe = fundamentals.get("PE Ratio")
+            if pe and 5 < pe < 20:
+                score += 2
+                reasons.append("attractive PE")
 
-    # Final classification
-    if score >= 4:
-        return "Long Term"
-    elif 1 <= score < 4:
-        return "Mid Term"
-    else:
-        return "Short Term"
+            # EPS check
+            eps = fundamentals.get("EPS")
+            if eps and eps > 10:
+                score += 2
+                reasons.append("strong EPS")
+
+            # Book value check
+            book = fundamentals.get("Book Value")
+            if book and book > 100:
+                score += 1
+                reasons.append("high book value")
+
+            # EMA crossover
+            if technicals.get("EMA_Crossover") == "Bullish":
+                score += 2
+                reasons.append("bullish EMA")
+
+            # Bollinger breakout
+            if technicals.get("Bollinger") == "Breakout":
+                score += 1
+                reasons.append("bollinger breakout")
+
+            # MACD
+            if technicals.get("MACD") == "Bullish":
+                score += 1
+                reasons.append("bullish MACD")
+
+            stock["Score"] = score
+            stock["Reasons"] = reasons
+            ranked.append(stock)
+
+        except Exception:
+            continue
+
+    return sorted(ranked, key=lambda x: x["Score"], reverse=True)
+
+
+def get_ranked_stocks(results, term):
+    filtered = [s for s in results if s.get("Recommendation") == term]
+    ranked = rank_stocks(filtered)
+    return ranked
