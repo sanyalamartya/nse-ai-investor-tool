@@ -1,26 +1,21 @@
-def recommend_term(fundamentals, data):
-    pe = fundamentals.get("pe_ratio")
-    eps = fundamentals.get("eps")
-    bv = fundamentals.get("book_value")
-    roe = fundamentals.get("roe")
+def recommend_term(technicals):
+    """
+    Recommend an investment horizon based on technical indicators.
 
-    if pe is None or eps is None or bv is None or roe is None:
-        return "unknown"
+    Parameters:
+    - technicals (dict): Dictionary containing technical indicators like MACD and RSI.
 
-    score = 0
+    Returns:
+    - str: One of "Short Term", "Medium Term", or "Long Term"
+    """
+    macd = technicals.get("macd", 0)
+    rsi = technicals.get("rsi", 0)
 
-    if pe < 20:
-        score += 1
-    if eps > 10:
-        score += 1
-    if bv and bv > 100:
-        score += 1
-    if roe and roe > 0.15:
-        score += 1
-
-    if score >= 3:
-        return "short"
-    elif score == 2:
-        return "mid"
+    if macd > 0 and 40 < rsi < 60:
+        return "Short Term"
+    elif macd > 0 and rsi <= 40:
+        return "Medium Term"
+    elif macd > 0 and rsi >= 60:
+        return "Long Term"
     else:
-        return "long"
+        return "Short Term"
