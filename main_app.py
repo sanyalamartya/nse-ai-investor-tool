@@ -1,77 +1,81 @@
 import streamlit as st
-from batch_runner import analyze_single_stock
 import pandas as pd
+from batch_runner import analyze_single_stock, analyze_all_stocks
 
-st.set_page_config(page_title="AI-based NSE Stock Recommender", layout="wide")
+st.set_page_config(page_title="📈 AI-Based NSE Stock Recommender", layout="wide")
 
 # 🔷 Title
-st.markdown("# 📈 AI-based NSE Stock Recommender")
-st.markdown("### 🔷 Analyze Individual NSE Stock")
+st.title("📊 AI-Based NSE Stock Recommender")
 
-# 🔍 Input
-symbol = st.text_input("Enter NSE Symbol (e.g., INFY, TCS)", "")
+# ---------------------- Tabs for Two Features ---------------------- #
+tab1, tab2 = st.tabs(["🔍 Analyze Individual Stock", "📊 Batch Scan Top Picks"])
 
-# Button
-if st.button("Analyze") and symbol:
-    try:
-        # Normalize symbol to uppercase and add .NS if not present
-        symbol_clean = symbol.strip().upper()
-        if not symbol_clean.endswith(".NS"):
-            symbol_clean += ".NS"
+# ====================== TAB 1: Individual Stock ====================== #
+with tab1:
+    st.subheader("🔎 Enter NSE Symbol (e.g., INFY, TCS)")
+    symbol = st.text_input("Stock Symbol")
 
-        st.info(f"Analyzing `{symbol_clean}`...")
+    if st.button("Analyze") and symbol:
+        st.info(f"Analyzing {symbol.upper()}...")
 
-        # Run analysis
-        results = analyze_single_stock(symbol_clean)
-
-        if results is None:
-            st.error("❌ Could not fetch data for this symbol.")
+        result = analyze_single_stock(symbol.upper() + ".NS")
+        if not result:
+            st.error("❌ Could not fetch data. Please check the symbol or try again later.")
         else:
-            term = results.get("term", "Unknown")
-            explanation = results.get("explanation", "")
-            fundamentals = results.get("fundamentals", {})
-            technicals = results.get("technicals", {})
-            sentiment = results.get("sentiment", {})
-            confidence = results.get("confidence", {})
+            term = result["term"]
+            fundamentals = result["fundamentals"]
+            technicals = result["technicals"]
+            sentiment = result.get("sentiment", {})
+            explanation = result["explanation"]
+            confidence = result.get("confidence", {})
 
-            # 🎯 Categorization Result
-            term_emoji = {"Short-Term": "🟢", "Mid-Term": "🟡", "Long-Term": "🔵"}
-            st.markdown(f"## {term_emoji.get(term, '')} Recommended Holding Period: **{term}**")
+            # Display recommendation
+            st.markdown(f"## ✅ Recommended Term: **{term}**")
 
             st.markdown("---")
+            st.markdown("### 📊 Fundamentals")
+            for k, v in fundamentals.items():
+                st.write(f"- **{k}**: {v}")
 
-            # 📊 Fundamental Insights
-            st.markdown("### 💼 Fundamental Strength")
-            if fundamentals:
-                for key, value in fundamentals.items():
-                    st.write(f"- **{key}**: {value}")
-            else:
-                st.warning("No fundamental data available.")
+            st.markdown("### 📈 Technicals")
+            for k, v in technicals.items():
+                st.write(f"- **{k}**: {v}")
 
-            # 📉 Technical Insights
-            st.markdown("### 📉 Technical Analysis")
-            if technicals:
-                for key, value in technicals.items():
-                    st.write(f"- **{key}**: {value}")
-            else:
-                st.warning("No technical analysis found.")
-
-            # 📰 Sentiment
             if sentiment:
-                st.markdown("### 📰 Sentiment & Macro View")
-                for key, value in sentiment.items():
-                    st.write(f"- **{key}**: {value}")
+                st.markdown("### 📰 Sentiment")
+                for k, v in sentiment.items():
+                    st.write(f"- **{k}**: {v}")
 
-            # 🧠 NLP Explanation
-            if explanation:
-                st.markdown("### 🤖 AI-Generated Explanation")
-                st.success(explanation)
+            st.markdown("### 🧠 AI Explanation")
+            st.success(explanation)
 
-            # 🔥 Confidence Levels
             if confidence:
-                st.markdown("### 🔥 Investment Confidence by Term")
-                conf_df = pd.DataFrame(list(confidence.items()), columns=["Term", "Confidence (%)"])
-                st.dataframe(conf_df)
+                st.markdown("### 🔥 Confidence Scores")
+                df_conf = pd.DataFrame(list(confidence.items()), columns=["Term", "Confidence"])
+                st.dataframe(df_conf)
 
-    except Exception as e:
-        st.error(f"Something went wrong: {e}")
+# ====================== TAB 2: Batch Screening ====================== #
+with tab2:
+    st.subheader("📂 Run Batch Analysis on All NSE Stocks")
+
+    if st.button("🔁 Run Full Scan"):
+        st.info("⏳ Scanning all stocks... please wait.")
+        result = analyze_all_stocks()
+
+        if result:
+            st.success(f"✅ Screened {result['count']} stocks!")
+
+            st.markdown("### 🟢 Top 5: Short-Term Picks")
+            df_short = pd.DataFrame(result["short"])
+            st.table(df_short)
+
+            st.markdown("### 🟡 Top 5: Mid-Term Picks")
+            df_mid = pd.DataFrame(result["mid"])
+            st.table(df_mid)
+
+            st.markdown("### 🔵 Top 5: Long-Term Picks")
+            df_long = pd.DataFrame(result["long"])
+            st.table(df_long)
+        else:
+            st.error("⚠️ No results to show. Something went wrong.")
+
