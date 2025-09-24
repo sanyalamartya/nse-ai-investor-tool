@@ -25,32 +25,29 @@ def generate_explanation(term, fundamentals, technicals):
         expl.append("High EPS growth and stable financials support long-term investment potential.")
 
     if "Trend" in technicals:
-        expl.append(f"Trend Analysis: {technicals['Trend']}")
+        expl.append(f"Trend: {technicals['Trend']}")
     if "EPS Growth" in fundamentals:
-        expl.append(f"EPS is growing at {fundamentals['EPS Growth']}, supporting stability.")
+        expl.append(f"EPS Growth: {fundamentals['EPS Growth']}")
 
     return " ".join(expl)
 
-# ---------------------- Core Analysis Function ---------------------- #
+# ---------------------- Core Function: Analyze One Stock ---------------------- #
 def analyze_single_stock(symbol):
     try:
-        if not symbol.endswith(".NS"):
-            symbol += ".NS"
-
         ticker = yf.Ticker(symbol)
         hist = ticker.history(period="6mo")
         info = ticker.info
 
         if hist.empty or not info:
-            print(f"⚠️ No data found for {symbol}")
+            print(f"⚠️ No data for {symbol}")
             return None
 
         # Fundamental Metrics
-        pe_ratio = info.get("trailingPE", None)
-        roe = info.get("returnOnEquity", None)
-        eps = info.get("trailingEps", None)
-        debt_to_equity = info.get("debtToEquity", None)
-        eps_growth = info.get("earningsQuarterlyGrowth", 0)
+        pe_ratio = info.get("trailingPE")
+        roe = info.get("returnOnEquity")
+        eps = info.get("trailingEps")
+        debt_to_equity = info.get("debtToEquity")
+        eps_growth = info.get("earningsQuarterlyGrowth", 0) or 0
 
         fundamentals = {
             "P/E Ratio": round(pe_ratio, 2) if pe_ratio else "N/A",
@@ -60,7 +57,7 @@ def analyze_single_stock(symbol):
             "EPS Growth": f"{round(eps_growth * 100, 1)}%" if eps_growth else "N/A"
         }
 
-        # Technicals
+        # Technical Metrics
         hist['Return'] = hist['Close'].pct_change()
         volatility = hist['Return'].std()
 
@@ -75,7 +72,7 @@ def analyze_single_stock(symbol):
         # Categorization
         term = categorize_term(volatility, trend_strength, eps_growth)
 
-        # Confidence Scores
+        # Confidence
         confidence = {
             "Short-Term": round((1 - volatility) * 100),
             "Mid-Term": round((trend_strength + 0.5) * 100),
@@ -90,7 +87,7 @@ def analyze_single_stock(symbol):
             "explanation": explanation,
             "fundamentals": fundamentals,
             "technicals": technicals,
-            "sentiment": {},  # Optional enhancement
+            "sentiment": {},
             "confidence": confidence
         }
 
@@ -98,9 +95,11 @@ def analyze_single_stock(symbol):
         print(f"❌ Error analyzing {symbol}: {e}")
         return None
 
-# ---------------------- Batch Analysis ---------------------- #
+# ---------------------- Batch Runner ---------------------- #
 def analyze_all_stocks():
     tickers = load_nse_tickers()
+    print(f"✅ Loaded {len(tickers)} tickers.")
+
     top_short, top_mid, top_long = [], [], []
     all_results = []
 
@@ -114,8 +113,7 @@ def analyze_all_stocks():
                 result["confidence"].get("Mid-Term", 0) +
                 result["confidence"].get("Long-Term", 0)
             )
-
-            entry = {"symbol": symbol.replace(".NS", ""), "score": score}
+            entry = {"symbol": symbol, "score": score}
 
             if result["term"] == "Short-Term":
                 top_short.append(entry)
@@ -124,7 +122,7 @@ def analyze_all_stocks():
             elif result["term"] == "Long-Term":
                 top_long.append(entry)
 
-    # Sort and get top 5
+    # Top 5
     top_short = sorted(top_short, key=lambda x: x["score"], reverse=True)[:5]
     top_mid = sorted(top_mid, key=lambda x: x["score"], reverse=True)[:5]
     top_long = sorted(top_long, key=lambda x: x["score"], reverse=True)[:5]
