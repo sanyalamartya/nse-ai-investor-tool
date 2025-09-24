@@ -1,146 +1,66 @@
-import yfinance as yf
-import numpy as np
+import streamlit as st
 import pandas as pd
-from data_fetcher import load_nse_tickers
+from batch_runner import analyze_single_stock, analyze_all_stocks
 
-# ---------------------- Term Categorization Logic ---------------------- #
-def categorize_term(volatility, trend_strength, eps_growth):
-    """Categorize stock holding period."""
-    if volatility < 0.02 and trend_strength > 0.5:
-        return "Short-Term"
-    elif 0.02 <= volatility <= 0.05 and trend_strength > 0.3:
-        return "Mid-Term"
-    elif eps_growth > 0.10:
-        return "Long-Term"
+# ---------------- UI Config ---------------- #
+st.set_page_config(page_title="AI-based NSE Stock Recommender", layout="wide")
+st.title("📈 AI-based NSE Stock Recommender")
+
+# ---------------- Single Stock Section ---------------- #
+st.header("🔍 Analyze Individual NSE Stock")
+symbol = st.text_input("Enter NSE Symbol (e.g., INFY, TCS)", "")
+
+if st.button("Analyze") and symbol:
+    with st.spinner(f"Analyzing {symbol.upper()}..."):
+        result = analyze_single_stock(symbol.upper())
+    if result is None:
+        st.error("❌ Could not fetch data for this symbol.")
     else:
-        return "Mid-Term"
+        term = result["term"]
+        explanation = result["explanation"]
+        fundamentals = result["fundamentals"]
+        technicals = result["technicals"]
+        sentiment = result.get("sentiment", {})
+        confidence = result.get("confidence", {})
 
-# ---------------------- Explanation Generator ---------------------- #
-def generate_explanation(term, fundamentals, technicals):
-    """Generate plain English explanation."""
-    expl = []
-    if term == "Short-Term":
-        expl.append("Low volatility and strong price momentum suggest a short-term opportunity.")
-    elif term == "Mid-Term":
-        expl.append("Balanced fundamentals and medium volatility make this a mid-term candidate.")
-    elif term == "Long-Term":
-        expl.append("High EPS growth and stable financials support long-term investment potential.")
+        # 🎯 Categorization Result
+        term_emoji = {"Short-Term": "🟢", "Mid-Term": "🟡", "Long-Term": "🔵"}
+        st.markdown(f"## {term_emoji.get(term, '')} Recommended Holding Period: **{term}**")
+        st.markdown("---")
 
-    if "Trend" in technicals:
-        expl.append(f"Trend Analysis: {technicals['Trend']}")
-    if "EPS Growth" in fundamentals:
-        expl.append(f"EPS is growing at {fundamentals['EPS Growth']}, supporting stability.")
+        # 💼 Fundamental Strength
+        st.subheader("💼 Fundamental Strength")
+        for key, value in fundamentals.items():
+            st.write(f"- **{key}**: {value}")
 
-    return " ".join(expl)
+        # 📉 Technical Analysis
+        st.subheader("📉 Technical Indicators")
+        for key, value in technicals.items():
+            st.write(f"- **{key}**: {value}")
 
-# ---------------------- Core Analysis Function ---------------------- #
-def analyze_single_stock(symbol):
-    try:
-        print(f"🔍 Starting analysis for: {symbol}")
+        # 🧠 Explanation
+        st.subheader("🧠 AI Explanation")
+        st.success(explanation)
 
-        # Sanitize symbol
-        symbol = symbol.strip().upper()
-        if not symbol.endswith(".NS"):
-            symbol += ".NS"
+        # 🔥 Confidence Levels
+        st.subheader("🔥 Confidence Scores by Term")
+        st.dataframe(pd.DataFrame.from_dict(confidence, orient="index", columns=["Confidence (%)"]))
 
-        ticker = yf.Ticker(symbol)
-        hist = ticker.history(period="6mo")
-        info = ticker.info
+# ---------------- Batch Analysis Section ---------------- #
+st.markdown("---")
+st.header("📊 Batch Scan for All NSE Stocks")
 
-        if hist.empty or not info:
-            print(f"⚠️ No data found for {symbol}.")
-            return None
+if st.button("Run Batch Scan"):
+    with st.spinner("Running analysis on all NSE stocks... (this may take time)"):
+        batch_results = analyze_all_stocks()
 
-        # -------- Fundamental Metrics -------- #
-        pe_ratio = info.get("trailingPE", None)
-        roe = info.get("returnOnEquity", None)
-        eps = info.get("trailingEps", None)
-        debt_to_equity = info.get("debtToEquity", None)
-        eps_growth = info.get("earningsQuarterlyGrowth", 0)
+    st.success(f"✅ Scanned {batch_results['count']} stocks successfully.")
 
-        fundamentals = {
-            "P/E Ratio": round(pe_ratio, 2) if pe_ratio else "N/A",
-            "ROE": f"{round(roe * 100, 1)}%" if roe else "N/A",
-            "EPS": round(eps, 2) if eps else "N/A",
-            "Debt/Equity": round(debt_to_equity, 2) if debt_to_equity else "N/A",
-            "EPS Growth": f"{round(eps_growth * 100, 1)}%" if eps_growth else "N/A"
-        }
+    st.subheader("🟢 Top 5 Short-Term Picks")
+    st.table(pd.DataFrame(batch_results["short"]))
 
-        # -------- Technical Metrics -------- #
-        hist['Return'] = hist['Close'].pct_change()
-        volatility = hist['Return'].std()
+    st.subheader("🟡 Top 5 Mid-Term Picks")
+    st.table(pd.DataFrame(batch_results["mid"]))
 
-        hist['SMA_20'] = hist['Close'].rolling(20).mean()
-        trend_strength = (hist['SMA_20'].iloc[-1] - hist['SMA_20'].iloc[0]) / hist['SMA_20'].iloc[0]
-
-        technicals = {
-            "Volatility": round(volatility, 4),
-            "Trend": "Bullish" if trend_strength > 0.05 else "Sideways" if trend_strength > 0 else "Bearish"
-        }
-
-        # -------- Term Categorization -------- #
-        term = categorize_term(volatility, trend_strength, eps_growth)
-
-        # -------- Confidence Scores -------- #
-        confidence = {
-            "Short-Term": round((1 - volatility) * 100),
-            "Mid-Term": round((trend_strength + 0.5) * 100),
-            "Long-Term": round((eps_growth + 0.1) * 100)
-        }
-
-        # -------- Explanation -------- #
-        explanation = generate_explanation(term, fundamentals, technicals)
-
-        return {
-            "term": term,
-            "explanation": explanation,
-            "fundamentals": fundamentals,
-            "technicals": technicals,
-            "sentiment": {},  # Placeholder for now
-            "confidence": confidence
-        }
-
-    except Exception as e:
-        import traceback
-        print(f"🔥 Exception while analyzing {symbol}: {e}")
-        traceback.print_exc()
-        return None
-
-
-# ---------------------- Batch Analysis ---------------------- #
-def analyze_all_stocks():
-    tickers = load_nse_tickers()
-    top_short, top_mid, top_long = [], [], []
-    all_results = []
-
-    for raw_symbol in tickers:
-        result = analyze_single_stock(raw_symbol)
-        if result:
-            all_results.append((raw_symbol, result))
-
-            score = (
-                result["confidence"].get("Short-Term", 0) +
-                result["confidence"].get("Mid-Term", 0) +
-                result["confidence"].get("Long-Term", 0)
-            )
-
-            entry = {"symbol": raw_symbol, "score": score}
-
-            if result["term"] == "Short-Term":
-                top_short.append(entry)
-            elif result["term"] == "Mid-Term":
-                top_mid.append(entry)
-            elif result["term"] == "Long-Term":
-                top_long.append(entry)
-
-    # Sort and select top 5
-    top_short = sorted(top_short, key=lambda x: x["score"], reverse=True)[:5]
-    top_mid = sorted(top_mid, key=lambda x: x["score"], reverse=True)[:5]
-    top_long = sorted(top_long, key=lambda x: x["score"], reverse=True)[:5]
-
-    return {
-        "short": top_short,
-        "mid": top_mid,
-        "long": top_long,
-        "count": len(all_results)
-    }
+    st.subheader("🔵 Top 5 Long-Term Picks")
+    st.table(pd.DataFrame(batch_results["long"]))
